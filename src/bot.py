@@ -8,6 +8,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from hikari.events.base_events import EventT
 from pytz import utc
 from dotenv import load_dotenv
+from fastapi.middleware.cors import CORSMiddleware
 
 load_dotenv()
 log = logging.getLogger(__name__)
@@ -24,6 +25,7 @@ bot.d.scheduler = AsyncIOScheduler()
 bot.d.scheduler.configure(timezone=utc)
 
 bot.load_extensions_from("./extensions")
+# bot.load_extensions_from("../cogs")
 
 
 @bot.listen(hikari.StartingEvent)
@@ -35,7 +37,6 @@ async def on_starting(_: hikari.StartingEvent) -> None:
 
 @bot.listen(hikari.StoppingEvent)
 async def on_stopping(_: hikari.StoppingEvent) -> None:
-    await bot.d.db.close()
     await bot.d.session.close()
     log.info("AIOHTTP session closed")
     bot.d.scheduler.shutdown()
@@ -46,10 +47,8 @@ async def on_error(event: hikari.ExceptionEvent[EventT]) -> None:
     raise event.exception
 
 
-
 def run() -> None:
     if os.name != "nt":
-        print("asd")
         import uvloop
         uvloop.install()
 

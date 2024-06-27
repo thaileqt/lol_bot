@@ -1,9 +1,10 @@
 import requests
 import os
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageEnhance
 from src.fetch_data import get_match_data, get_champion_data_by_champion_id
-from src.const import *
+from src.settings import *
 from dotenv import load_dotenv
+from threading import Thread
 
 load_dotenv()
 API_KEY = os.getenv('API_KEY')
@@ -14,7 +15,11 @@ class MatchData:
         self.team2 = []
         background_path = "../img14.10.1/background/background_0.png"
         self.img = Image.open(background_path)
+        enhancer = ImageEnhance.Brightness(self.img)
+        # to reduce brightness by 50%, use factor 0.5
+        self.img = enhancer.enhance(0.5)
         self.draw = ImageDraw.Draw(self.img)
+
         match_data = get_match_data(name_with_tag)
         if not match_data:
             print("Player or Match not found!")
@@ -26,16 +31,40 @@ class MatchData:
 
     def process_match_data(self, match_data):
         participants = match_data["participants"]
+        threads = []
+
+        # Create threads for each player
         for player in participants:
-            team_id = player["teamId"]
-            summoner_name = player["riotId"]
-            summoner_id = player["summonerId"]
-            champion_name = get_champion_data_by_champion_id(player["championId"])
+            thread = Thread(target=self.process_player, args=(player,))
+            threads.append(thread)
+            thread.start()
 
-            solo_tier, solo_rank, flex_tier, flex_rank = self.get_summoner_rank(summoner_id)
-            self.add_player(team_id, summoner_name, champion_name, solo_tier, solo_rank, flex_tier, flex_rank)
-            print(f"{summoner_name} - {champion_name} - {solo_tier} {solo_rank} - {flex_tier} {flex_rank}")
+        # Wait for all threads to finish
+        for thread in threads:
+            thread.join()
 
+        # for player in participants:
+        #     team_id = player["teamId"]
+        #     summoner_name = player["riotId"]
+        #     summoner_id = player["summonerId"]
+        #     champion_name = get_champion_data_by_champion_id(player["championId"])
+        #
+        #     solo_tier, solo_rank, flex_tier, flex_rank = self.get_summoner_rank(summoner_id)
+        #     self.add_player(team_id, summoner_name, champion_name, solo_tier, solo_rank, flex_tier, flex_rank)
+        #     print(f"{summoner_name} - {champion_name} - {solo_tier} {solo_rank} - {flex_tier} {flex_rank}")
+
+        self.build()
+
+    def process_player(self, player):
+        team_id = player["teamId"]
+        summoner_name = player["riotId"]
+        summoner_id = player["summonerId"]
+        champion_name = get_champion_data_by_champion_id(player["championId"])
+
+        solo_tier, solo_rank, flex_tier, flex_rank = self.get_summoner_rank(summoner_id)
+        print(f"{summoner_name} - {champion_name} - {solo_tier} {solo_rank} - {flex_tier} {flex_rank}")
+
+        self.add_player(team_id, summoner_name, champion_name, solo_tier, solo_rank, flex_tier, flex_rank)
 
     def get_summoner_rank(self, summoner_id):
         url = f"https://vn2.api.riotgames.com/lol/league/v4/entries/by-summoner/{summoner_id}?api_key={API_KEY}"
@@ -96,7 +125,6 @@ class MatchData:
 
 
     def build(self):
-        print(self.team1)
         for i, player in enumerate(self.team1):
             self.draw_summoner_info(player[0], player[1], player[2], player[3], player[4], player[5], 1, i)
         for i, player in enumerate(self.team2):
